@@ -1,0 +1,35 @@
+name: Reminder
+
+on:
+  schedule:
+    - cron: '54 15 * * *'  # Set your desired schedule
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v2
+
+    - name: Set Reminder
+      run: |
+        # Extracting due date from the issue
+        DUE_DATE=$(curl -sH "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                      "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}" \
+                      | jq -r '.due_on')
+
+        # Calculate the time difference in seconds
+        NOW=$(date +%s)
+        DUE_DATE_UNIX=$(date -d "$DUE_DATE" +%s)
+        REMINDER_THRESHOLD=$((24 * 60 * 60))  # 24 hours in seconds
+
+        # Check if the due date is approaching
+        if [ $((DUE_DATE_UNIX - NOW)) -lt $REMINDER_THRESHOLD ]; then
+          # Comment on the issue with a reminder
+          COMMENT="🚨 Reminder: This issue is due soon! Please take action."
+          curl -X POST \
+               -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+               -H "Content-Type: application/json" \
+               -d "{\"body\":\"$COMMENT\"}" \
+               "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments"
+        fi
